@@ -1022,5 +1022,11 @@ class VikingSettlementTycoon {
 
 // Start the game when page loads
 window.addEventListener('load', () => {
+    // Add check for Socket.IO availability
+    if (typeof io === 'undefined') {
+        console.error('Socket.IO client library not loaded. Please check server connection.');
+        return;
+    }
+    
     const game = new VikingSettlementTycoon();
 });

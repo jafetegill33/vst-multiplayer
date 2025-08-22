@@ -6,6 +6,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <script src="/socket.io/socket.io.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "nipplejs": "https://esm.sh/nipplejs"
+        }
+    }
+    </script>
+    <script>
+        // Ensure Socket.IO is loaded before starting the game
+        function initializeGame() {
+            if (typeof io === 'undefined') {
+                console.error('Socket.IO not loaded, retrying...');
+                setTimeout(initializeGame, 100);
+                return;
+            }
+            
+            // Load the game script after Socket.IO is confirmed loaded
+            const gameScript = document.createElement('script');
+            gameScript.src = 'game.js';
+            gameScript.onerror = function() {
+                console.error('Failed to load game script');
+            };
+            document.body.appendChild(gameScript);
+        }
+        
+        // Start initialization when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeGame);
+        } else {
+            initializeGame();
+        }
+    </script>
 </head>
 <body>
     <div id="gameContainer">
@@ -129,14 +161,5 @@
         <!-- Notification System -->
         <div id="notifications"></div>
     </div>
-
-    <script type="importmap">
-    {
-        "imports": {
-            "nipplejs": "https://esm.sh/nipplejs"
-        }
-    }
-    </script>
-    <script src="game.js"></script>
 </body>
 </html>

@@ -1941,6 +1941,12 @@ class MobileVikingSettlementTycoon {
 
 // Start the mobile game when page loads
 window.addEventListener('load', () => {
+    // Add check for Socket.IO availability
+    if (typeof io === 'undefined') {
+        console.error('Socket.IO client library not loaded for mobile. Please check server connection.');
+        return;
+    }
+    
     const game = new MobileVikingSettlementTycoon();
     
     // Auto-save every 2 minutes

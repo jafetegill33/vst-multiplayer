@@ -29,6 +29,38 @@
         }, false);
     </script>
     <script src="/socket.io/socket.io.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "nipplejs": "https://esm.sh/nipplejs"
+        }
+    }
+    </script>
+    <script>
+        // Ensure Socket.IO is loaded before starting the mobile game
+        function initializeMobileGame() {
+            if (typeof io === 'undefined') {
+                console.error('Socket.IO not loaded for mobile, retrying...');
+                setTimeout(initializeMobileGame, 100);
+                return;
+            }
+            
+            // Load the mobile game script after Socket.IO is confirmed loaded
+            const gameScript = document.createElement('script');
+            gameScript.src = 'android.js';
+            gameScript.onerror = function() {
+                console.error('Failed to load mobile game script');
+            };
+            document.body.appendChild(gameScript);
+        }
+        
+        // Start initialization when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeMobileGame);
+        } else {
+            initializeMobileGame();
+        }
+    </script>
 </head>
 <body>
     <div id="gameContainer">
@@ -228,14 +260,5 @@
             </div>
         </div>
     </div>
-
-    <script type="importmap">
-    {
-        "imports": {
-            "nipplejs": "https://esm.sh/nipplejs"
-        }
-    }
-    </script>
-    <script src="android.js"></script>
 </body>
 </html>
