@@ -1,0 +1,142 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viking Settlement Tycoon</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="gameContainer">
+        <!-- Top UI Bar -->
+        <div id="topUI">
+            <div class="ui-section">
+                <h1 class="game-title">Viking Settlement Tycoon</h1>
+            </div>
+            <div class="ui-section">
+                <div class="resources">
+                    <div class="resource-item">
+                        <span class="resource-icon">🌾</span>
+                        <div class="resource-info">
+                            <span class="resource-value" id="food">100</span>
+                            <span class="resource-rate">(0/ps)</span>
+                        </div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">🪵</span>
+                        <div class="resource-info">
+                            <span class="resource-value" id="wood">50</span>
+                            <span class="resource-rate">(0/ps)</span>
+                        </div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">⚒️</span>
+                        <div class="resource-info">
+                            <span class="resource-value" id="iron">25</span>
+                            <span class="resource-rate">(0/ps)</span>
+                        </div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">🏺</span>
+                        <div class="resource-info">
+                            <span class="resource-value" id="gold">10</span>
+                            <span class="resource-rate">(0/ps)</span>
+                        </div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">👥</span>
+                        <div class="resource-info">
+                            <span class="resource-value" id="population">5</span>
+                            <span class="resource-rate">(+0/ps)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div id="gameWorld">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Building Selection Panel -->
+            <div id="buildingPanel" class="panel">
+                <h3>Construct Buildings</h3>
+                <div class="building-grid">
+                    <div class="building-card" data-building="longhouse">
+                        <div class="building-icon">🏘️</div>
+                        <div class="building-name">Longhouse</div>
+                        <div class="building-cost">🪵 20 🌾 10</div>
+                    </div>
+                    <div class="building-card" data-building="farm">
+                        <div class="building-icon">🌾</div>
+                        <div class="building-name">Farm</div>
+                        <div class="building-cost">🪵 15</div>
+                    </div>
+                    <div class="building-card" data-building="lumbermill">
+                        <div class="building-icon">🪓</div>
+                        <div class="building-name">Lumber Mill</div>
+                        <div class="building-cost">🪵 25 ⚒️ 5</div>
+                    </div>
+                    <div class="building-card" data-building="blacksmith">
+                        <div class="building-icon">⚒️</div>
+                        <div class="building-name">Blacksmith</div>
+                        <div class="building-cost">🪵 30 ⚒️ 10</div>
+                    </div>
+                    <div class="building-card" data-building="tradingpost">
+                        <div class="building-icon">⛵</div>
+                        <div class="building-name">Trading Post</div>
+                        <div class="building-cost">🪵 40 🏺 5</div>
+                    </div>
+                    <div class="building-card" data-building="temple">
+                        <div class="building-icon">⚡</div>
+                        <div class="building-name">Temple</div>
+                        <div class="building-cost">🪵 50 ⚒️ 20 🏺 15</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settlement Info Panel -->
+            <div id="infoPanel" class="panel">
+                <h3>Settlement Status</h3>
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Happiness:</span>
+                        <div class="stat-bar">
+                            <div class="stat-fill" id="happinessBar" style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Defense:</span>
+                        <div class="stat-bar">
+                            <div class="stat-fill" id="defenseBar" style="width: 40%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Prosperity:</span>
+                        <div class="stat-bar">
+                            <div class="stat-fill" id="prosperityBar" style="width: 60%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="settlement-actions">
+                    <button id="generateMapBtn" class="action-btn">🗺️ New Territory</button>
+                    <button id="saveGameBtn" class="action-btn">💾 Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification System -->
+        <div id="notifications"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "nipplejs": "https://esm.sh/nipplejs"
+        }
+    }
+    </script>
+    <script src="game.js"></script>
+</body>
+</html>
