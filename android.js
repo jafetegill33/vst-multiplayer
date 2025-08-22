@@ -114,7 +114,12 @@ class MobileVikingSettlementTycoon {
     
     connectToServer() {
         try {
-            this.socket = io();
+            // Use a fallback server URL for GitHub Pages deployment
+            const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                ? 'http://localhost:3000' 
+                : 'https://your-server-url.herokuapp.com'; // Replace with your actual server URL
+            
+            this.socket = io(serverUrl);
             
             this.socket.on('connect', () => {
                 console.log('Mobile connected to multiplayer server');
@@ -150,8 +155,120 @@ class MobileVikingSettlementTycoon {
             
         } catch (error) {
             console.error('Mobile failed to connect to server:', error);
-            this.showMobileNotification('Failed to connect to server', 'error');
+            this.showMobileNotification('Running in offline demo mode', 'warning');
+            
+            // Initialize offline/demo mode for mobile
+            this.initializeMobileDemoMode();
         }
+    }
+    
+    initializeMobileDemoMode() {
+        // Initialize basic game state for mobile demo/offline play
+        this.isConnected = false;
+        this.worldId = 'mobile_demo_world';
+        
+        // Initialize with default data
+        this.scouts = [{
+            id: `scout_mobile_demo_${Date.now()}`,
+            x: 0,
+            y: 0,
+            speed: 30,
+            target: null,
+            exploring: false,
+            health: 100,
+            range: 60
+        }];
+        
+        this.setupCanvas();
+        this.setupMobileUI();
+        this.setupMobileEventListeners();
+        
+        // Generate initial chunks around spawn for mobile
+        this.generateMobileInitialChunks();
+        
+        this.showMobileNotification('Running in mobile demo mode', 'info');
+    }
+    
+    generateMobileInitialChunks() {
+        // Generate fewer chunks for mobile performance
+        for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+                const chunk = this.generateMobileDemoChunk(x, y);
+                const chunkKey = this.getChunkKey(x, y);
+                this.loadedChunks.set(chunkKey, chunk);
+                this.initializeChunkFogOfWar(x, y);
+            }
+        }
+        
+        // Reveal initial area
+        this.revealArea(0, 0, 80);
+    }
+    
+    generateMobileDemoChunk(chunkX, chunkY) {
+        const chunk = {
+            x: chunkX,
+            y: chunkY,
+            worldX: chunkX * this.chunkSize,
+            worldY: chunkY * this.chunkSize,
+            tiles: [],
+            textureCanvas: this.createMobileChunkCanvas({ x: chunkX, y: chunkY, worldX: chunkX * this.chunkSize, worldY: chunkY * this.chunkSize }),
+            detailCanvas: this.createMobileChunkDetailCanvas({ x: chunkX, y: chunkY, worldX: chunkX * this.chunkSize, worldY: chunkY * this.chunkSize }),
+            generated: true
+        };
+        
+        return chunk;
+    }
+    
+    createMobileChunkCanvas(chunk) {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.chunkSize;
+        canvas.height = this.chunkSize;
+        const ctx = canvas.getContext('2d');
+        
+        // Simple mobile-optimized terrain generation
+        const tilesPerChunk = this.chunkSize / this.tileSize;
+        
+        for (let tileX = 0; tileX < tilesPerChunk; tileX++) {
+            for (let tileY = 0; tileY < tilesPerChunk; tileY++) {
+                const worldTileX = chunk.worldX + (tileX * this.tileSize);
+                const worldTileY = chunk.worldY + (tileY * this.tileSize);
+                
+                const noise = Math.sin(worldTileX * 0.01) * Math.cos(worldTileY * 0.01);
+                let tileType = 'grass';
+                
+                if (noise < -0.3) tileType = 'water';
+                else if (noise > 0.3) tileType = 'forest';
+                else if (noise > 0.1) tileType = 'hills';
+                
+                const localX = tileX * this.tileSize;
+                const localY = tileY * this.tileSize;
+                
+                switch(tileType) {
+                    case 'water':
+                        ctx.fillStyle = '#2196f3';
+                        break;
+                    case 'forest':
+                        ctx.fillStyle = '#2e7d32';
+                        break;
+                    case 'hills':
+                        ctx.fillStyle = '#8d6e63';
+                        break;
+                    default:
+                        ctx.fillStyle = '#4caf50';
+                }
+                
+                ctx.fillRect(localX, localY, this.tileSize, this.tileSize);
+            }
+        }
+        
+        return canvas;
+    }
+    
+    createMobileChunkDetailCanvas(chunk) {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.chunkSize;
+        canvas.height = this.chunkSize;
+        return canvas;
     }
     
     attemptReconnect() {
@@ -621,17 +738,69 @@ class MobileVikingSettlementTycoon {
     }
     
     tryPlaceMobileBuilding(screenX, screenY) {
-        if (!this.socket || !this.isConnected) {
-            this.showMobileNotification('Not connected to server!', 'error');
+        const worldPos = this.screenToWorld(screenX, screenY);
+        
+        if (!this.isConnected) {
+            // Demo mode - handle locally
+            this.handleMobileDemoBuilding(worldPos.x, worldPos.y);
             return;
         }
         
-        const worldPos = this.screenToWorld(screenX, screenY);
+        if (!this.socket) {
+            this.showMobileNotification('Not connected to server!', 'error');
+            return;
+        }
         
         this.socket.emit('place_building', {
             buildingType: this.selectedBuilding,
             x: worldPos.x,
             y: worldPos.y
+        });
+    }
+    
+    handleMobileDemoBuilding(x, y) {
+        const buildingData = this.getBuildingData(this.selectedBuilding);
+        if (!buildingData) return;
+        
+        // Check resources
+        if (!this.canAfford(buildingData.cost)) {
+            this.showMobileNotification('Insufficient resources', 'error');
+            return;
+        }
+        
+        // Check placement validity
+        if (!this.isValidPlacement(x, y)) {
+            this.showMobileNotification('Invalid placement location', 'error');
+            return;
+        }
+        
+        // Create building
+        const building = {
+            id: `mobile_demo_${Date.now()}_${Math.random()}`,
+            type: this.selectedBuilding,
+            x, y,
+            ...buildingData,
+            level: 1,
+            production: 0,
+            lastUpdate: Date.now(),
+            createdAt: Date.now()
+        };
+        
+        // Update resources and buildings
+        this.spendResources(buildingData.cost);
+        this.buildings.push(building);
+        this.cancelMobilePlacement();
+        
+        this.showMobileNotification(`${building.name} built!`, 'success');
+    }
+    
+    cancelMobilePlacement() {
+        this.selectedBuilding = null;
+        this.placementMode = false;
+        
+        // Update UI
+        document.querySelectorAll('.mobile-building-card').forEach(card => {
+            card.classList.remove('selected');
         });
     }
     

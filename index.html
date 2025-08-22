@@ -14,27 +14,129 @@
     }
     </script>
     <script>
-        // Ensure Socket.IO is loaded before starting the game
-        function initializeGame() {
-            if (typeof io === 'undefined') {
-                console.error('Socket.IO not loaded, retrying...');
-                setTimeout(initializeGame, 100);
-                return;
-            }
+        // Enhanced Socket.IO loading with CDN fallback
+        let socketIOAttempts = 0;
+        const maxSocketIOAttempts = 3;
+        
+        async function initializeGame() {
+            socketIOAttempts++;
             
-            // Load the game script after Socket.IO is confirmed loaded
+            try {
+                // Check if Socket.IO is already loaded from CDN
+                if (typeof io !== 'undefined') {
+                    console.log('Socket.IO loaded from CDN');
+                    loadGameScript();
+                    return;
+                }
+                
+                throw new Error('Socket.IO not available');
+            } catch (error) {
+                console.error('Socket.IO initialization failed:', error.message);
+                
+                if (socketIOAttempts < maxSocketIOAttempts) {
+                    console.log(`Retrying Socket.IO load (${socketIOAttempts}/${maxSocketIOAttempts})...`);
+                    setTimeout(initializeGame, 2000);
+                } else {
+                    showLoadingError();
+                }
+            }
+        }
+        
+        function loadGameScript() {
             const gameScript = document.createElement('script');
             gameScript.src = 'game.js';
+            gameScript.onload = function() {
+                console.log('Game script loaded successfully');
+                hideLoadingIndicator();
+            };
             gameScript.onerror = function() {
                 console.error('Failed to load game script');
+                showLoadingError('Failed to load game script');
             };
             document.body.appendChild(gameScript);
         }
         
+        function showLoadingIndicator() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loadingIndicator';
+            loadingDiv.innerHTML = `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                            background: rgba(44, 24, 16, 0.95); color: #d4af37; padding: 30px; 
+                            border-radius: 15px; text-align: center; z-index: 9999; border: 2px solid #8b4513;
+                            box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
+                    <div style="font-size: 2rem; margin-bottom: 15px;">⚡</div>
+                    <h3 style="margin: 0 0 10px 0; font-family: 'Space Mono', monospace;">Loading Viking Settlement Tycoon</h3>
+                    <p style="margin: 0; font-size: 0.9rem; color: #cccccc;">Connecting to multiplayer server...</p>
+                    <div style="margin-top: 15px; width: 200px; height: 4px; background: rgba(0,0,0,0.3); border-radius: 2px; overflow: hidden;">
+                        <div style="width: 100%; height: 100%; background: linear-gradient(90deg, #d4af37 0%, #f4c842 100%); 
+                                    animation: loading 1.5s ease-in-out infinite;"></div>
+                    </div>
+                </div>
+                <style>
+                    @keyframes loading {
+                        0% { transform: translateX(-100%); }
+                        100% { transform: translateX(100%); }
+                    }
+                </style>
+            `;
+            document.body.appendChild(loadingDiv);
+        }
+        
+        function hideLoadingIndicator() {
+            const loadingDiv = document.getElementById('loadingIndicator');
+            if (loadingDiv) {
+                loadingDiv.remove();
+            }
+        }
+        
+        function showLoadingError(customMessage = null) {
+            hideLoadingIndicator();
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.innerHTML = `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                            background: rgba(244, 67, 54, 0.95); color: white; padding: 30px; 
+                            border-radius: 15px; text-align: center; z-index: 9999; border: 2px solid #d32f2f;
+                            box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
+                    <div style="font-size: 2rem; margin-bottom: 15px;">⚠️</div>
+                    <h3 style="margin: 0 0 10px 0; font-family: 'Space Mono', monospace;">Connection Error</h3>
+                    <p style="margin: 0 0 15px 0; font-size: 0.9rem; line-height: 1.4;">
+                        ${customMessage || 'Unable to connect to the multiplayer server. This could be due to:'}<br>
+                        • Server is offline or unreachable<br>
+                        • Network connectivity issues<br>
+                        • Firewall or proxy blocking the connection
+                    </p>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="window.location.reload()" 
+                                style="padding: 12px 24px; background: white; color: #f44336; 
+                                       border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+                                       font-family: 'Space Mono', monospace;">
+                            🔄 Retry
+                        </button>
+                        <button onclick="showOfflineMode()" 
+                                style="padding: 12px 24px; background: transparent; color: white; 
+                                       border: 2px solid white; border-radius: 8px; cursor: pointer; font-weight: bold;
+                                       font-family: 'Space Mono', monospace;">
+                            📱 Play Offline
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(errorDiv);
+        }
+        
+        function showOfflineMode() {
+            alert('Offline mode is not available in this multiplayer version. Please check your connection and try again.');
+        }
+        
         // Start initialization when page loads
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeGame);
+            document.addEventListener('DOMContentLoaded', () => {
+                showLoadingIndicator();
+                initializeGame();
+            });
         } else {
+            showLoadingIndicator();
             initializeGame();
         }
     </script>

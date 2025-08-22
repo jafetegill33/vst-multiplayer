@@ -6,6 +6,7 @@
     <title>Viking Settlement Tycoon - Mobile</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="android-styles.css">
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script>
         // Force portrait orientation
         if (screen.orientation && screen.orientation.lock) {
@@ -28,7 +29,6 @@
             lastTouchEnd = now;
         }, false);
     </script>
-    <script src="/socket.io/socket.io.js"></script>
     <script type="importmap">
     {
         "imports": {
@@ -41,9 +41,11 @@
         function initializeMobileGame() {
             if (typeof io === 'undefined') {
                 console.error('Socket.IO not loaded for mobile, retrying...');
-                setTimeout(initializeMobileGame, 100);
+                setTimeout(initializeMobileGame, 1000);
                 return;
             }
+            
+            console.log('Socket.IO loaded from CDN for mobile');
             
             // Load the mobile game script after Socket.IO is confirmed loaded
             const gameScript = document.createElement('script');

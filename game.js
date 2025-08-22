@@ -60,7 +60,12 @@ class VikingSettlementTycoon {
     
     connectToServer() {
         try {
-            this.socket = io();
+            // Use a fallback server URL for GitHub Pages deployment
+            const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                ? 'http://localhost:3000' 
+                : 'https://your-server-url.herokuapp.com'; // Replace with your actual server URL
+            
+            this.socket = io(serverUrl);
             
             this.socket.on('connect', () => {
                 console.log('Connected to multiplayer server');
@@ -130,8 +135,119 @@ class VikingSettlementTycoon {
             
         } catch (error) {
             console.error('Failed to connect to server:', error);
-            this.showNotification('Failed to connect to multiplayer server', 'error');
+            this.showNotification('Failed to connect to multiplayer server - running in demo mode', 'warning');
+            
+            // Initialize offline/demo mode
+            this.initializeDemoMode();
         }
+    }
+    
+    initializeDemoMode() {
+        // Initialize basic game state for demo/offline play
+        this.isConnected = false;
+        this.worldId = 'demo_world';
+        
+        // Initialize with default data
+        this.scouts = [{
+            id: `scout_demo_${Date.now()}`,
+            x: 0,
+            y: 0,
+            speed: 30,
+            target: null,
+            exploring: false,
+            health: 100,
+            range: 60
+        }];
+        
+        this.setupCanvas();
+        this.setupEventListeners();
+        this.setupUI();
+        
+        // Generate initial chunks around spawn
+        this.generateInitialChunks();
+        
+        this.showNotification('Running in offline demo mode', 'info');
+    }
+    
+    generateInitialChunks() {
+        // Generate a few chunks around the starting position for demo mode
+        for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+                const chunk = this.generateDemoChunk(x, y);
+                const chunkKey = this.getChunkKey(x, y);
+                this.loadedChunks.set(chunkKey, chunk);
+                this.initializeChunkFogOfWar(x, y);
+            }
+        }
+        
+        // Reveal initial area
+        this.revealArea(0, 0, 100);
+    }
+    
+    generateDemoChunk(chunkX, chunkY) {
+        const chunk = {
+            x: chunkX,
+            y: chunkY,
+            worldX: chunkX * this.chunkSize,
+            worldY: chunkY * this.chunkSize,
+            tiles: [],
+            textureCanvas: document.createElement('canvas'),
+            detailCanvas: document.createElement('canvas'),
+            generated: true
+        };
+        
+        // Setup canvases
+        chunk.textureCanvas.width = this.chunkSize;
+        chunk.textureCanvas.height = this.chunkSize;
+        chunk.detailCanvas.width = this.chunkSize;
+        chunk.detailCanvas.height = this.chunkSize;
+        
+        const ctx = chunk.textureCanvas.getContext('2d');
+        const detailCtx = chunk.detailCanvas.getContext('2d');
+        
+        // Simple terrain generation for demo
+        const tilesPerChunk = this.chunkSize / this.tileSize;
+        
+        for (let tileX = 0; tileX < tilesPerChunk; tileX++) {
+            for (let tileY = 0; tileY < tilesPerChunk; tileY++) {
+                const worldTileX = chunk.worldX + (tileX * this.tileSize);
+                const worldTileY = chunk.worldY + (tileY * this.tileSize);
+                
+                // Simple noise for terrain
+                const noise = Math.sin(worldTileX * 0.01) * Math.cos(worldTileY * 0.01);
+                let tileType = 'grass';
+                
+                if (noise < -0.3) tileType = 'water';
+                else if (noise > 0.3) tileType = 'forest';
+                else if (noise > 0.1) tileType = 'hills';
+                
+                // Draw tile
+                const localX = tileX * this.tileSize;
+                const localY = tileY * this.tileSize;
+                
+                switch(tileType) {
+                    case 'water':
+                        ctx.fillStyle = '#2196f3';
+                        break;
+                    case 'forest':
+                        ctx.fillStyle = '#2e7d32';
+                        break;
+                    case 'hills':
+                        ctx.fillStyle = '#8d6e63';
+                        break;
+                    default:
+                        ctx.fillStyle = '#4caf50';
+                }
+                
+                ctx.fillRect(localX, localY, this.tileSize, this.tileSize);
+                
+                chunk.tiles.push({
+                    localX, localY, worldX: worldTileX, worldY: worldTileY, type: tileType
+                });
+            }
+        }
+        
+        return chunk;
     }
     
     attemptReconnect() {
@@ -477,18 +593,148 @@ class VikingSettlementTycoon {
     }
     
     tryPlaceBuilding(screenX, screenY) {
-        if (!this.socket || !this.isConnected) {
-            this.showNotification('Not connected to server!', 'error');
+        const worldPos = this.screenToWorld(screenX, screenY);
+        
+        if (!this.isConnected) {
+            // Demo mode - handle locally
+            this.handleDemoBuilding(worldPos.x, worldPos.y);
             return;
         }
         
-        const worldPos = this.screenToWorld(screenX, screenY);
+        if (!this.socket) {
+            this.showNotification('Not connected to server!', 'error');
+            return;
+        }
         
         // Send to server for validation and placement
         this.socket.emit('place_building', {
             buildingType: this.selectedBuilding,
             x: worldPos.x,
             y: worldPos.y
+        });
+    }
+    
+    handleDemoBuilding(x, y) {
+        const buildingData = this.getBuildingData(this.selectedBuilding);
+        if (!buildingData) return;
+        
+        // Check resources
+        if (!this.canAfford(buildingData.cost)) {
+            this.showNotification('Insufficient resources', 'error');
+            return;
+        }
+        
+        // Check placement validity
+        if (!this.isValidPlacement(x, y)) {
+            this.showNotification('Invalid placement location', 'error');
+            return;
+        }
+        
+        // Create building
+        const building = {
+            id: `demo_${Date.now()}_${Math.random()}`,
+            type: this.selectedBuilding,
+            x, y,
+            ...buildingData,
+            level: 1,
+            production: 0,
+            lastUpdate: Date.now(),
+            createdAt: Date.now()
+        };
+        
+        // Update resources and buildings
+        this.spendResources(buildingData.cost);
+        this.buildings.push(building);
+        this.cancelPlacement();
+        
+        this.showNotification(`${building.name} built!`, 'success');
+    }
+    
+    getBuildingData(type) {
+        const buildings = {
+            longhouse: {
+                name: 'Longhouse',
+                icon: '🏘️',
+                cost: { wood: 20, food: 10 },
+                produces: { population: 3 },
+                size: 48
+            },
+            farm: {
+                name: 'Farm',
+                icon: '🌾',
+                cost: { wood: 15 },
+                produces: { food: 2 },
+                size: 40
+            },
+            lumbermill: {
+                name: 'Lumber Mill',
+                icon: '🪓',
+                cost: { wood: 25, iron: 5 },
+                produces: { wood: 3 },
+                size: 44
+            },
+            blacksmith: {
+                name: 'Blacksmith',
+                icon: '⚒️',
+                cost: { wood: 30, iron: 10 },
+                produces: { iron: 2 },
+                size: 36
+            },
+            tradingpost: {
+                name: 'Trading Post',
+                icon: '⛵',
+                cost: { wood: 40, gold: 5 },
+                produces: { gold: 1 },
+                size: 42
+            },
+            temple: {
+                name: 'Temple',
+                icon: '⚡',
+                cost: { wood: 50, iron: 20, gold: 15 },
+                produces: { happiness: 10 },
+                size: 52
+            }
+        };
+        
+        return buildings[type];
+    }
+    
+    canAfford(cost) {
+        for (const [resource, amount] of Object.entries(cost)) {
+            if (this.resources[resource] < amount) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    spendResources(cost) {
+        for (const [resource, amount] of Object.entries(cost)) {
+            this.resources[resource] -= amount;
+        }
+        this.updateResourceDisplay();
+    }
+    
+    isValidPlacement(x, y) {
+        const buildingData = this.getBuildingData(this.selectedBuilding);
+        if (!buildingData) return false;
+        
+        for (const building of this.buildings) {
+            const distance = Math.sqrt((building.x - x) ** 2 + (building.y - y) ** 2);
+            if (distance < buildingData.size) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    cancelPlacement() {
+        this.selectedBuilding = null;
+        this.placementMode = false;
+        
+        // Update UI
+        document.querySelectorAll('.building-card').forEach(card => {
+            card.classList.remove('selected');
         });
     }
     
@@ -1025,8 +1271,48 @@ window.addEventListener('load', () => {
     // Add check for Socket.IO availability
     if (typeof io === 'undefined') {
         console.error('Socket.IO client library not loaded. Please check server connection.');
+        
+        // Show user-friendly error message
+        const errorDiv = document.createElement('div');
+        errorDiv.innerHTML = `
+            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                        background: #f44336; color: white; padding: 20px; border-radius: 10px; 
+                        text-align: center; z-index: 9999;">
+                <h3>Connection Error</h3>
+                <p>Unable to connect to multiplayer server.</p>
+                <p>Please refresh the page or try again later.</p>
+                <button onclick="window.location.reload()" 
+                        style="margin-top: 10px; padding: 10px 20px; background: white; 
+                               color: #f44336; border: none; border-radius: 5px; cursor: pointer;">
+                    Refresh Page
+                </button>
+            </div>
+        `;
+        document.body.appendChild(errorDiv);
         return;
     }
     
-    const game = new VikingSettlementTycoon();
+    try {
+        const game = new VikingSettlementTycoon();
+    } catch (error) {
+        console.error('Failed to initialize game:', error);
+        
+        // Show initialization error
+        const errorDiv = document.createElement('div');
+        errorDiv.innerHTML = `
+            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                        background: #ff9800; color: white; padding: 20px; border-radius: 10px; 
+                        text-align: center; z-index: 9999;">
+                <h3>Game Initialization Error</h3>
+                <p>There was a problem starting the game.</p>
+                <p>Error: ${error.message}</p>
+                <button onclick="window.location.reload()" 
+                        style="margin-top: 10px; padding: 10px 20px; background: white; 
+                               color: #ff9800; border: none; border-radius: 5px; cursor: pointer;">
+                    Try Again
+                </button>
+            </div>
+        `;
+        document.body.appendChild(errorDiv);
+    }
 });
